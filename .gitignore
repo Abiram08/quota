@@ -1,0 +1,146 @@
+# Quota: what this repo keeps
+# Only what is needed to build, test and understand Quota:
+#   Cargo.toml, Cargo.lock, .cargo/       workspace, locked dependencies
+#   crates/*/src, crates/*/build.rs       Rust sources
+#   crates/tray/ui/**/*.slint             the popup UI
+#   crates/tray/ui/icons/*.svg            interface icons and provider logos (embedded)
+#   crates/tray/ui/fonts/*.ttf            Geist (embedded)
+#   crates/core/tests/fixtures/*.json     sanitised test responses
+#   README.md, CHANGELOG.md, THIRD_PARTY.md, licence texts
+#   .github/                              CI and funding
+#   scripts/cargo.cmd                     build helper
+# Everything below stays on this PC only.
+
+# ---- Build output ----
+/target/
+/dist/
+*.pdb
+*.exe
+*.dll
+*.lib
+*.exp
+*.ilk
+*.rlib
+*.o
+*.obj
+
+# ---- Images, screenshots, media ----
+# The app draws its tray icon in code (icon.rs). It embeds only the SVGs and
+# fonts listed above, so no image belongs in the repo. That includes UI
+# previews (`--preview out.bmp`) and screen recordings.
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.webp
+*.avif
+*.tif
+*.tiff
+*.ico
+*.icns
+*.heic
+*.psd
+*.fig
+*.sketch
+*.xcf
+*.mp4
+*.mov
+*.webm
+*.mkv
+*.avi
+*.mp3
+*.wav
+*.pdf
+*.svg
+!/crates/tray/ui/icons/*.svg
+*.ttf
+*.otf
+*.woff
+*.woff2
+!/crates/tray/ui/fonts/*.ttf
+/screenshots/
+/shots/
+/previews/
+/media/
+/assets/
+
+# ---- Local runs ----
+# Preview errors, benchmark output, logs.
+*.err.txt
+*bench*.txt
+quota-bench.txt
+*.log
+*.trace
+*.profraw
+*.profdata
+flamegraph*.svg
+perf.data*
+
+# ---- Quota's own data on this PC ----
+# Usage snapshot, token counts and config. Personal: never commit it.
+/.quota/
+tokens-cache.json
+snapshot.json
+
+# ---- Secrets ----
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+*.spc
+credentials*.json
+auth.json
+*.vscdb
+*.sqlite
+*.sqlite3
+*.db
+
+# ---- Parked: local-only until releases are needed ----
+/parked/
+/installer/
+/site/
+/scripts/package.ps1
+/.github/workflows/release.yml
+/.github/workflows/pages.yml
+/RELEASING.md
+
+# ---- Archives and downloads ----
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.msi
+*.msix
+
+# ---- Editors, AI tools, OS ----
+.idea/
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+*~
+.claude/
+CLAUDE.local.md
+.codex/
+.cursor/
+.aider*
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ---- Scratch ----
+/tmp/
+/scratch/
+*.bak
+*.orig
+*.rej

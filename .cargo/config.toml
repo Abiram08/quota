@@ -1,0 +1,7 @@
+[build]
+# This machine is RAM-constrained; keep parallel rustc/gcc jobs low.
+jobs = 2
+# Build output goes to the standard `target/` folder in this project.
+# Note: the windows-gnu toolchain's dlltool fails when the project path
+# contains a space ("Better Projects"). Build from a path without spaces
+# (see README, Building).
