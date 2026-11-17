@@ -1,0 +1,21 @@
+[package]
+name = "quota"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Show AI coding subscription limits and reset times"
+
+[[bin]]
+name = "quota"
+path = "src/main.rs"
+
+[dependencies]
+quota-core.workspace = true
+serde.workspace = true
+# preserve_order: JSON keys print in the documented order (schema first).
+serde_json = { workspace = true, features = ["preserve_order"] }
+
+# Only to switch the Windows console into ANSI (VT) mode for colours.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_System_Console"] }
