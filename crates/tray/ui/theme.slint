@@ -1,0 +1,145 @@
+// Quota design tokens. The ONLY place colours, type sizes, spacing, radii
+// and motion are defined. Screens and components read `Theme.*`; no inline
+// colour literals anywhere else (checked by a test in src/theme_tests.rs).
+//
+// The home popup follows the OpenUsage menu (MIT, by Robin Ebers; see
+// THIRD_PARTY.md): a Priority | All usage switch, provider cards, bars.
+//
+// ---- The grid ----
+// Everything sits on a 4px grid, and space says what belongs together:
+//   4   inside a control (icon to its label, segment padding)
+//   8   a label and the thing it labels (name and bar, title and line 2)
+//   12  items in a row (icon to text, button to button is 8)
+//   16  the popup's edge, a card's padding, and items in a list
+//   24  sections of a page
+// One left edge and one right edge run from the top control to the footer:
+// the 16px gutter. Rows that highlight on hover bleed 8px past that edge,
+// so their text stays on it.
+// Controls are 32px tall and rows 44px (52px with a second line), big
+// enough to hit (Fitts) and the same on every page, so nothing jumps.
+//
+// ---- Colour ----
+// Neutral surfaces, one hue for data (the bars), orange and red only when a
+// limit is low. Buttons are neutral: near-black (light) or near-white
+// (dark) for the one primary action. Words carry every state ("11% left",
+// "Running out"); colour repeats them.
+//
+// Contrast (WCAG 2.x, computed by a test in src/theme_tests.rs): text and
+// text-secondary pass 4.5:1 on card and surface in both themes; bar fills
+// pass 3:1 against the track; orange and red text pass 4.5:1 on the card.
+
+export global Theme {
+    // Set from Rust: Windows app theme unless the user overrides it.
+    in property <bool> dark: true;
+    // Set from Rust: Windows "Animation effects" off => true.
+    in property <bool> reduce-motion: false;
+
+    // ---- Surfaces: the window, and cards one tone step above it ----
+    out property <color> surface: dark ? #1C1C1E : #F7F7F8;
+    out property <color> card: dark ? #2A2A2D : #FFFFFF;
+    // Light cards need an edge on the near-white ground; dark ones use the
+    // tone step alone (a border or a step, never both).
+    out property <color> card-edge: dark ? #2A2A2D : #E6E6E9;
+    // Dividers inside a card, one step quieter than its edge.
+    out property <color> divider: dark ? #38383B : #EEEEF0;
+    // The track of a segmented control, and its selected thumb. The track
+    // reads on both the window and a card; the thumb is the lightest step.
+    out property <color> well: dark ? #333336 : #EBEBED;
+    out property <color> thumb: dark ? #4A4A4F : #FFFFFF;
+    // Hover and press on rows and quiet buttons.
+    out property <color> hover: dark ? #333336 : #F0F0F2;
+    out property <color> press: dark ? #3D3D41 : #E6E6E9;
+    // The outline of a secondary button: one step stronger than a card edge.
+    out property <color> control-edge: dark ? #48484C : #D4D4D8;
+
+    // ---- Text: two greys that read apart ----
+    out property <color> text: dark ? #F2F2F3 : #111113;
+    out property <color> text-secondary: dark ? #A1A1A6 : #5F5F66;
+    // Decorative only (chevrons, a muted logo). Never carries words.
+    out property <color> text-dim: dark ? #6E6E73 : #A1A1AA;
+
+    // ---- Actions ----
+    out property <color> primary: dark ? #F2F2F3 : #18181B;
+    out property <color> primary-hover: dark ? #D9D9DC : #34343A;
+    out property <color> primary-text: dark ? #111113 : #FFFFFF;
+
+    // ---- Data: bars, rings, low states ----
+    out property <color> track: dark ? #3A3A3D : #E6E6E9;
+    out property <color> bar-ok: dark ? #4C8DF6 : #2563EB;
+    out property <color> bar-low: dark ? #FF9F0A : #C2410C;
+    out property <color> bar-hot: dark ? #FF6B61 : #DC2626;
+    // The on-state of a switch: the primary neutral, not a hue.
+    out property <color> switch-on: primary;
+    out property <color> knob: dark ? #111113 : #FFFFFF;
+    out property <color> knob-off: dark ? #A1A1A6 : #FFFFFF;
+    // Soft layers under the floating menu (no blur in the software renderer).
+    out property <color> shadow: dark ? #00000066 : #0000000D;
+
+    // ---- Provider logo tints (each brand's own colour; a near-black
+    // brand uses the text colour so it shows in both themes).
+    out property <color> brand-claude: #DE7356;
+    out property <color> brand-codex: #74AA9C;
+    out property <color> brand-copilot: #A855F7;
+    out property <color> brand-openrouter: #6467F2;
+
+    // ---- Type: Geist (SIL OFL 1.1), embedded. Four sizes, three weights.
+    out property <string> font-family: "Geist";
+    out property <length> font-meta: 12px;
+    out property <length> font-body: 14px;
+    out property <length> font-title: 16px;
+    out property <length> font-display: 24px;
+    out property <int> weight-regular: 400;
+    out property <int> weight-medium: 500;
+    out property <int> weight-strong: 600;
+    out property <length> tracking-title: -0.2px;
+    out property <length> tracking-display: -0.4px;
+
+    // ---- Spacing (see the grid above) ----
+    // 2 is not a gap between things: only a title to its own second line,
+    // and the inset of a thumb or knob inside its track.
+    out property <length> space-2: 2px;
+    out property <length> space-4: 4px;
+    out property <length> space-8: 8px;
+    out property <length> space-12: 12px;
+    out property <length> space-16: 16px;
+    out property <length> space-24: 24px;
+    out property <length> space-32: 32px;
+    // The popup's edge and a card's padding.
+    out property <length> gutter: space-16;
+    // How far a hover row reaches past the text edge.
+    out property <length> bleed: space-8;
+
+    // ---- Sizes ----
+    out property <length> control-height: 32px;
+    out property <length> row-height: 44px;
+    out property <length> row-height-2: 52px;
+    out property <length> footer-height: 44px;
+    out property <length> icon: 16px;
+    out property <length> ring: 32px;
+    out property <length> bar-height: 6px;
+    out property <length> ring-stroke: 2.5px;
+    // A switch: 32x20 track, 16px knob inset by space-2.
+    out property <length> switch-width: 32px;
+    out property <length> switch-height: 20px;
+    out property <length> tooltip-height: space-24;
+    // The figure beside a bar: wide enough for "100%" and "$15.00".
+    out property <length> figure-width: 56px;
+    // Every segmented control in Settings: one width, so their edges line up.
+    out property <length> choice-width: 184px;
+    out property <length> popup-width: 380px;
+    out property <length> menu-width: 216px;
+
+    // ---- Shape: tight radii, stepping down as they nest ----
+    out property <length> radius-card: 8px;
+    out property <length> radius-control: 6px;
+    out property <length> radius-thumb: 4px;
+
+    // ---- Motion (all zero when reduce-motion is on) ----
+    out property <duration> motion-fill: reduce-motion ? 0ms : 300ms;
+    out property <duration> motion-hover: reduce-motion ? 0ms : 120ms;
+    out property <duration> motion-intro: reduce-motion ? 0ms : 180ms;
+    out property <duration> motion-page: reduce-motion ? 0ms : 160ms;
+    out property <duration> motion-tab: reduce-motion ? 0ms : 180ms;
+    // How long a pointer rests on an icon button before its name shows.
+    out property <duration> tooltip-delay: 450ms;
+}

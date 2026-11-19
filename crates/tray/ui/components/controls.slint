@@ -1,0 +1,298 @@
+// The few controls every page shares. Sizes come from the grid in
+// theme.slint: controls are 32px, icons 16px, and a pressed or hovered
+// control only changes its fill, never its size, so nothing moves.
+
+import { Theme } from "../theme.slint";
+
+// Two to four choices in one track. The selected one is a raised thumb.
+export component Segmented inherits Rectangle {
+    in property <[string]> items;
+    in-out property <int> current;
+    callback selected(int);
+    height: Theme.control-height;
+    background: Theme.well;
+    border-radius: Theme.radius-control;
+    accessible-role: tab-list;
+
+    property <length> pad: Theme.space-2;
+    property <int> count: max(root.items.length, 1);
+    property <length> item-w: (root.width - 2 * root.pad) / root.count;
+
+    // Hidden when nothing is selected (current = -1).
+    if root.current >= 0: Rectangle {
+        x: root.pad + root.current * root.item-w;
+        y: root.pad;
+        width: root.item-w;
+        height: parent.height - 2 * root.pad;
+        background: Theme.thumb;
+        border-radius: Theme.radius-thumb;
+        animate x { duration: Theme.motion-tab; easing: cubic-bezier(0.2, 0, 0, 1); }
+    }
+
+    HorizontalLayout {
+        padding: root.pad;
+        for item[i] in root.items: Rectangle {
+            property <bool> active: i == root.current;
+            min-width: 0;
+            preferred-width: 0;
+            horizontal-stretch: 1;
+            accessible-role: tab;
+            accessible-label: item;
+            accessible-item-selected: self.active;
+            Text {
+                text: item;
+                color: parent.active || touch.has-hover ? Theme.text : Theme.text-secondary;
+                font-family: Theme.font-family;
+                font-size: Theme.font-body;
+                font-weight: Theme.weight-medium;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                animate color { duration: Theme.motion-hover; }
+            }
+            touch := TouchArea {
+                mouse-cursor: pointer;
+                clicked => {
+                    root.current = i;
+                    root.selected(i);
+                }
+            }
+        }
+    }
+}
+
+// A 32px square with a 16px icon. Its name shows as a tooltip after the
+// pointer rests on it.
+export component IconButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    callback clicked();
+    width: Theme.control-height;
+    height: Theme.control-height;
+    border-radius: Theme.radius-control;
+    background: touch.pressed ? Theme.press : touch.has-hover ? Theme.hover : transparent;
+    animate background { duration: Theme.motion-hover; }
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.clicked(); }
+    Image {
+        source: root.icon;
+        colorize: touch.has-hover ? Theme.text : Theme.text-secondary;
+        width: Theme.icon;
+        height: Theme.icon;
+        accessible-role: none;
+        animate colorize { duration: Theme.motion-hover; }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.tip = false;
+            root.clicked();
+        }
+    }
+
+    property <bool> hovered: touch.has-hover;
+    property <bool> tip: false;
+    changed hovered => { if !self.hovered { root.tip = false; } }
+    Timer {
+        interval: Theme.tooltip-delay;
+        running: root.hovered && !root.tip;
+        triggered => { root.tip = true; }
+    }
+    if root.tip: Rectangle {
+        y: -self.height - Theme.space-4;
+        x: (parent.width - self.width) / 2;
+        height: Theme.tooltip-height;
+        width: tip-text.preferred-width + 2 * Theme.space-8;
+        border-radius: Theme.radius-thumb;
+        background: Theme.primary;
+        accessible-role: none;
+        tip-text := Text {
+            text: root.label;
+            color: Theme.primary-text;
+            font-family: Theme.font-family;
+            font-size: Theme.font-meta;
+            font-weight: Theme.weight-medium;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+}
+
+// On/off. The knob's side says the state, so colour is not the only cue.
+export component Switch inherits Rectangle {
+    in property <bool> on;
+    in property <string> label;
+    // The row holding the switch is hovered.
+    in property <bool> hot: false;
+    callback toggled();
+    width: Theme.switch-width;
+    height: Theme.switch-height;
+    border-radius: self.height / 2;
+    background: root.on ? Theme.switch-on : (root.hot || touch.has-hover ? Theme.text-dim : Theme.control-edge);
+    animate background { duration: Theme.motion-hover; }
+    accessible-role: switch;
+    accessible-checkable: true;
+    accessible-checked: root.on;
+    accessible-label: root.label;
+    accessible-action-default => { root.toggled(); }
+    Rectangle {
+        x: root.on ? parent.width - self.width - Theme.space-2 : Theme.space-2;
+        y: Theme.space-2;
+        width: parent.height - 2 * Theme.space-2;
+        height: self.width;
+        border-radius: self.height / 2;
+        background: root.on ? Theme.knob : Theme.knob-off;
+        animate x { duration: Theme.motion-hover; easing: cubic-bezier(0.2, 0, 0, 1); }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.toggled(); }
+    }
+}
+
+// The name of a group of rows: sentence case, small, grey.
+export component SectionLabel inherits Text {
+    color: Theme.text-secondary;
+    font-family: Theme.font-family;
+    font-size: Theme.font-meta;
+    font-weight: Theme.weight-medium;
+}
+
+// A card: a tone step above the window (dark) or white with an edge (light).
+export component Card inherits Rectangle {
+    // Hover fills of the rows inside follow the rounded corners.
+    clip: true;
+    background: Theme.card;
+    border-radius: Theme.radius-card;
+    border-width: 1px;
+    border-color: Theme.card-edge;
+}
+
+// A divider between rows of a card, starting at the text edge.
+export component Divider inherits Rectangle {
+    in property <length> inset: 0px;
+    height: 1px;
+    Rectangle {
+        x: root.inset;
+        width: parent.width - root.inset;
+        height: 1px;
+        background: Theme.divider;
+    }
+}
+
+// A 32px text button. `primary` is the one filled action on a page;
+// otherwise it is outlined. `quiet` is text only, for a link-like action.
+export component Button inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary: false;
+    in property <bool> quiet: false;
+    callback clicked();
+    height: Theme.control-height;
+    width: label.preferred-width + 2 * Theme.space-12;
+    border-radius: Theme.radius-control;
+    background: root.primary ? (touch.pressed ? Theme.text-secondary : touch.has-hover ? Theme.primary-hover : Theme.primary)
+        : (touch.pressed ? Theme.press : touch.has-hover ? Theme.hover : (root.quiet ? transparent : Theme.card));
+    animate background { duration: Theme.motion-hover; }
+    border-width: root.primary || root.quiet ? 0px : 1px;
+    border-color: Theme.control-edge;
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-action-default => { root.clicked(); }
+    label := Text {
+        text: root.text;
+        color: root.primary ? Theme.primary-text : Theme.text;
+        font-family: Theme.font-family;
+        font-size: Theme.font-body;
+        font-weight: Theme.weight-medium;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    touch := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
+}
+
+// A page title with a back button. The button's icon sits on the gutter,
+// the title 8px after it; the second line sits under the title.
+export component PageHeader inherits HorizontalLayout {
+    in property <string> title;
+    in property <string> subtitle;
+    callback back-clicked();
+    spacing: Theme.space-8;
+    // The button reaches 8px into the gutter, so its icon sits on it.
+    Rectangle {
+        width: Theme.control-height - Theme.bleed;
+        height: Theme.control-height;
+        IconButton {
+            x: -Theme.bleed;
+            icon: @image-url("../icons/lucide-chevron-left.svg");
+            label: "Back";
+            clicked => { root.back-clicked(); }
+        }
+    }
+    VerticalLayout {
+        alignment: center;
+        spacing: Theme.space-2;
+        horizontal-stretch: 1;
+        min-height: Theme.control-height;
+        Text {
+            text: root.title;
+            color: Theme.text;
+            font-family: Theme.font-family;
+            font-size: Theme.font-title;
+            letter-spacing: Theme.tracking-title;
+            font-weight: Theme.weight-strong;
+        }
+        if root.subtitle != "": Text {
+            text: root.subtitle;
+            color: Theme.text-secondary;
+            font-family: Theme.font-family;
+            font-size: Theme.font-meta;
+            wrap: word-wrap;
+        }
+    }
+}
+
+export component MenuItem inherits Rectangle {
+    in property <string> text;
+    in property <string> hint;
+    callback clicked();
+    height: Theme.control-height;
+    border-radius: Theme.radius-thumb;
+    background: touch.pressed ? Theme.press : touch.has-hover ? Theme.hover : transparent;
+    animate background { duration: Theme.motion-hover; }
+    accessible-role: button;
+    accessible-label: root.text;
+    HorizontalLayout {
+        padding-left: Theme.space-8;
+        padding-right: Theme.space-8;
+        spacing: Theme.space-8;
+        Text {
+            text: root.text;
+            color: Theme.text;
+            font-family: Theme.font-family;
+            font-size: Theme.font-body;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+        Text {
+            text: root.hint;
+            color: Theme.text-secondary;
+            font-family: Theme.font-family;
+            font-size: Theme.font-meta;
+            vertical-alignment: center;
+        }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component MenuSeparator inherits Rectangle {
+    height: 2 * Theme.space-4 + 1px;
+    Rectangle {
+        x: Theme.space-8;
+        width: parent.width - 2 * Theme.space-8;
+        height: 1px;
+        background: Theme.divider;
+    }
+}

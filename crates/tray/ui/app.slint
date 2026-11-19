@@ -1,0 +1,387 @@
+// Quota popup root: the Priority | All usage switch, the page, and the
+// footer. Settings and Add account replace the page. Created when the tray
+// icon is clicked and destroyed on close.
+//
+// Vertical rhythm (theme.slint): 16px gutter above the switch, 16px from
+// the switch to the page, 16px under the page, then the 44px footer. The
+// footer's text sits on the gutter; its icon buttons end 8px inside it, so
+// their icons (16px in a 32px button) end on the gutter too.
+
+// Geist (SIL OFL 1.1): embedded, so the popup looks the same on every PC.
+import "fonts/Geist-Regular.ttf";
+import "fonts/Geist-Medium.ttf";
+import "fonts/Geist-SemiBold.ttf";
+
+import { Theme } from "theme.slint";
+import { Logo } from "components/logo.slint";
+import { IconButton, MenuItem, MenuSeparator, Segmented, Button } from "components/controls.slint";
+import { UsagePage } from "pages/usage.slint";
+import { ConnectPage } from "pages/connect.slint";
+import { SettingsPage } from "pages/settings.slint";
+import { UsageCardData, PriorityRowData, ConnectorData, ProviderToggleData } from "model.slint";
+import { AboutSlint, Palette } from "std-widgets.slint";
+
+export { Theme, Logo, UsageCardData, PriorityRowData, ConnectorData, ProviderToggleData }
+
+export component Popup inherits Window {
+    title: "Quota";
+    no-frame: true;
+    always-on-top: true;
+    background: Theme.surface;
+    width: Theme.popup-width;
+    // Rust sizes the window from this and keeps it inside the work area.
+    // The menu and About sheet float over the page, so the window grows
+    // to hold them instead of cutting them off.
+    out property <length> content-height: max(column.preferred-height,
+        root.menu-open ? root.menu-height + Theme.footer-height + Theme.gutter : 0px,
+        root.about-open ? about-col.preferred-height : 0px);
+    in property <length> max-body-height: 520px;
+    // Full work-area height. Add account uses it so its action stays on screen.
+    in property <length> window-limit: 800px;
+
+    // ---- Data from Rust ----
+    // All usage: connected cards, then the providers that are not connected.
+    in property <[UsageCardData]> cards;
+    in property <[UsageCardData]> offline;
+    // Priority: pinned, running out, used up.
+    in property <[PriorityRowData]> rows;
+    // 0 Priority, 1 All usage. Kept across refreshes.
+    in-out property <int> home-view: 0;
+    // Nothing connected yet: the welcome.
+    in property <bool> show-empty: false;
+    // "1.0.0", from Cargo.toml.
+    in property <string> app-version;
+    // Add account
+    in property <[ConnectorData]> connectors;
+    in-out property <bool> connect-open: false;
+    in property <bool> welcome: false;
+    in property <string> connect-summary;
+    callback connect-opened();
+    callback check-again();
+    // Settings
+    in-out property <bool> settings-open: false;
+    in property <bool> autostart;
+    in property <bool> notify;
+    in property <int> theme-index;
+    in property <int> usage-index;
+    in property <int> reset-index;
+    in property <int> poll-index;
+    in property <string> poll-note;
+    in property <[ProviderToggleData]> provider-toggles;
+    callback settings-opened();
+    callback toggle-autostart();
+    callback toggle-notify();
+    callback theme-selected(int);
+    callback usage-selected(int);
+    callback reset-selected(int);
+    callback poll-selected(int);
+    callback toggle-provider(int);
+    callback open-config();
+    // A full page (Add account or Settings) replaces the home.
+    property <bool> page-open: root.connect-open || root.settings-open;
+    in property <string> footer;
+    in property <string> theme-label;
+
+    // ---- Actions handled in Rust ----
+    // Copies a reset time. Does not change the provider.
+    callback copy-reset(string);
+    callback refresh();
+    callback copy-summary();
+    callback cycle-theme();
+    callback quit();
+    callback open-sponsor();
+    callback close-popup();
+
+    in-out property <bool> menu-open: false;
+    in-out property <bool> about-open: false;
+    // Set by Rust right after the window is shown: the content fades and
+    // slides in (instant with reduce-motion, and in the preview).
+    in property <bool> shown: false;
+    // Set by the off-screen preview: no page transition, so a capture never
+    // lands mid-fade.
+    in property <bool> still: false;
+
+    // Page transition: the new page starts hidden and fades in.
+    property <int> page-key: root.connect-open ? 10 : root.settings-open ? 11 : root.home-view;
+    property <bool> page-in: true;
+    changed page-key => {
+        if !root.still && !Theme.reduce-motion { root.page-in = false; }
+    }
+    Timer {
+        interval: 16ms;
+        running: !root.page-in;
+        triggered => { root.page-in = true; }
+    }
+
+    // Slint's own widgets (the About badge) follow Quota's theme.
+    property <bool> dark-theme: Theme.dark;
+    init => { Palette.color-scheme = Theme.dark ? ColorScheme.dark : ColorScheme.light; }
+    changed dark-theme => { Palette.color-scheme = Theme.dark ? ColorScheme.dark : ColorScheme.light; }
+
+    // The menu: 8 items, 2 separators, 4px padding.
+    property <length> menu-height: 8 * Theme.control-height + 2 * (2 * Theme.space-4 + 1px) + 2 * Theme.space-4;
+
+    forward-focus: keys;
+    keys := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.Escape {
+                if root.menu-open || root.about-open || root.page-open {
+                    root.connect-open = false;
+                    root.settings-open = false;
+                    root.menu-open = false;
+                    root.about-open = false;
+                } else {
+                    root.close-popup();
+                }
+                return accept;
+            }
+            if !root.page-open && (event.text == Key.LeftArrow || event.text == Key.UpArrow) {
+                root.home-view = 0;
+                return accept;
+            }
+            if !root.page-open && (event.text == Key.RightArrow || event.text == Key.DownArrow) {
+                root.home-view = 1;
+                return accept;
+            }
+            if event.text == "r" || event.text == "R" || event.text == Key.F5 { root.refresh(); return accept; }
+            if event.text == "t" || event.text == "T" { root.cycle-theme(); return accept; }
+            reject
+        }
+    }
+
+    column := VerticalLayout {
+        y: root.shown ? 0 : Theme.space-8;
+        animate y { duration: Theme.motion-intro; easing: cubic-bezier(0.2, 0, 0, 1); }
+
+        // The switch: only when there is something to switch between.
+        if !root.page-open && !root.show-empty: VerticalLayout {
+            padding: Theme.gutter;
+            Segmented {
+                items: ["Priority", "All usage"];
+                current <=> root.home-view;
+            }
+        }
+
+        if root.connect-open: ConnectPage {
+            window-limit: root.window-limit;
+            connectors: root.connectors;
+            welcome: root.welcome;
+            summary: root.connect-summary;
+            check-again => { root.check-again(); }
+            done => { root.connect-open = false; }
+        }
+
+        if !root.connect-open: Rectangle {
+            height: min(body.preferred-height, root.max-body-height);
+            flick := Flickable {
+                width: parent.width;
+                height: parent.height;
+                content-height: body.preferred-height;
+                states [
+                    hidden when !root.page-in: {
+                        flick.opacity: 0;
+                        flick.y: Theme.space-8;
+                        out {
+                            animate flick.opacity { duration: Theme.motion-page; easing: ease-out; }
+                            animate flick.y { duration: Theme.motion-page; easing: cubic-bezier(0.2, 0, 0, 1); }
+                        }
+                    }
+                ]
+                body := VerticalLayout {
+                    width: parent.width;
+                    if root.settings-open: SettingsPage {
+                        autostart: root.autostart;
+                        notify: root.notify;
+                        theme-index: root.theme-index;
+                        usage-index: root.usage-index;
+                        reset-index: root.reset-index;
+                        poll-index: root.poll-index;
+                        poll-note: root.poll-note;
+                        providers: root.provider-toggles;
+                        toggle-autostart => { root.toggle-autostart(); }
+                        toggle-notify => { root.toggle-notify(); }
+                        theme-selected(i) => { root.theme-selected(i); }
+                        usage-selected(i) => { root.usage-selected(i); }
+                        reset-selected(i) => { root.reset-selected(i); }
+                        poll-selected(i) => { root.poll-selected(i); }
+                        toggle-provider(i) => { root.toggle-provider(i); }
+                        open-config => { root.open-config(); }
+                        done => { root.settings-open = false; }
+                    }
+                    if !root.page-open: UsagePage {
+                        cards: root.cards;
+                        offline: root.offline;
+                        rows: root.rows;
+                        show-empty: root.show-empty;
+                        home-view: root.home-view;
+                        copy-reset(t) => { root.copy-reset(t); }
+                        add-account => {
+                            root.connect-open = true;
+                            root.connect-opened();
+                        }
+                        show-all => { root.home-view = 1; }
+                    }
+                }
+            }
+        }
+
+        // Footer: status on the gutter, then copy and the menu. Add account
+        // ends in its own action, so the bar hides there.
+        if !root.connect-open: Rectangle {
+            height: Theme.footer-height;
+            Rectangle {
+                y: 0;
+                height: 1px;
+                background: Theme.divider;
+            }
+            HorizontalLayout {
+                padding-left: Theme.gutter;
+                padding-right: Theme.gutter - Theme.space-8;
+                Text {
+                    text: root.footer;
+                    color: Theme.text-secondary;
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-meta;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    HorizontalLayout {
+                        spacing: Theme.space-4;
+                        if root.home-view == 0 && !root.page-open && !root.show-empty: IconButton {
+                            icon: @image-url("icons/lucide-copy.svg");
+                            label: "Copy summary";
+                            clicked => { root.copy-summary(); }
+                        }
+                        IconButton {
+                            icon: @image-url("icons/lucide-ellipsis.svg");
+                            label: "More";
+                            clicked => { root.menu-open = !root.menu-open; }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // "…" menu: drawn inside the popup (a separate menu window would take
+    // focus and close the popup). It opens 4px above the footer, its right
+    // edge on the right edge of the "…" button it came from. A click outside the
+    // menu closes it.
+    if root.menu-open: TouchArea { clicked => { root.menu-open = false; } }
+    if root.menu-open: Rectangle {
+        x: parent.width - self.width - Theme.space-8;
+        y: parent.height - self.height - Theme.footer-height - Theme.space-4;
+        width: Theme.menu-width;
+        height: root.menu-height;
+        // Shadow: stacked translucent outlines (no blur in the software
+        // renderer), a little lower than the menu.
+        for d in [6, 3]: Rectangle {
+            x: -d * 1px;
+            y: -d * 1px + Theme.space-2;
+            width: parent.width + 2 * d * 1px;
+            height: parent.height + 2 * d * 1px;
+            border-radius: Theme.radius-card + d * 1px;
+            background: Theme.shadow;
+        }
+        Rectangle {
+            background: Theme.card;
+            border-radius: Theme.radius-card;
+            border-width: 1px;
+            border-color: Theme.control-edge;
+        }
+        VerticalLayout {
+            padding: Theme.space-4;
+            MenuItem { text: "Refresh"; hint: "R"; clicked => { root.menu-open = false; root.refresh(); } }
+            MenuItem { text: "Copy summary"; clicked => { root.menu-open = false; root.copy-summary(); } }
+            MenuItem { text: "Add account…"; clicked => { root.menu-open = false; root.settings-open = false; root.connect-open = true; root.connect-opened(); } }
+            MenuItem { text: "Settings…"; clicked => { root.menu-open = false; root.connect-open = false; root.settings-open = true; root.settings-opened(); } }
+            MenuItem { text: "Theme"; hint: root.theme-label; clicked => { root.cycle-theme(); } }
+            MenuSeparator { }
+            MenuItem { text: "Sponsor Quota…"; clicked => { root.menu-open = false; root.open-sponsor(); } }
+            MenuItem { text: "About Quota"; clicked => { root.menu-open = false; root.about-open = true; } }
+            MenuSeparator { }
+            MenuItem { text: "Quit"; clicked => { root.quit(); } }
+        }
+    }
+
+    // About: required attribution for the Slint Royalty-free License 2.0.
+    // One centred moment; everything else in the popup is left-aligned.
+    about := Rectangle {
+        visible: root.about-open;
+        background: Theme.surface;
+        TouchArea { enabled: root.about-open; clicked => { root.about-open = false; } }
+        about-col := VerticalLayout {
+            alignment: center;
+            padding: Theme.space-24;
+            spacing: Theme.space-4;
+            Text {
+                text: "Quota";
+                color: Theme.text;
+                font-family: Theme.font-family;
+                font-size: Theme.font-display;
+                letter-spacing: Theme.tracking-display;
+                font-weight: Theme.weight-strong;
+                horizontal-alignment: center;
+            }
+            Text {
+                text: "Version " + root.app-version;
+                color: Theme.text-secondary;
+                font-family: Theme.font-family;
+                font-size: Theme.font-meta;
+                horizontal-alignment: center;
+            }
+            VerticalLayout {
+                padding-top: Theme.space-16;
+                spacing: Theme.space-4;
+                Text {
+                    text: "AI coding limits and token use, on this PC only.";
+                    color: Theme.text;
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-body;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                Text {
+                    text: "No account, no server and no telemetry.";
+                    color: Theme.text-secondary;
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-meta;
+                    horizontal-alignment: center;
+                }
+            }
+            VerticalLayout {
+                padding-top: Theme.space-24;
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: Theme.space-8;
+                    Button { text: "Close"; primary: true; clicked => { root.about-open = false; } }
+                    Button { text: "Sponsor Quota"; clicked => { root.open-sponsor(); } }
+                }
+            }
+            VerticalLayout {
+                padding-top: Theme.space-24;
+                spacing: Theme.space-8;
+                Text {
+                    text: "Layout after OpenUsage by Robin Ebers (MIT).";
+                    color: Theme.text-secondary;
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-meta;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    AboutSlint { width: Theme.choice-width; }
+                }
+            }
+        }
+    }
+
+    // Open animation: a veil in the page colour fades away.
+    Rectangle {
+        background: root.shown ? Theme.surface.transparentize(1) : Theme.surface;
+        animate background { duration: Theme.motion-intro; easing: ease-out; }
+    }
+}

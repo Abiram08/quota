@@ -1,0 +1,78 @@
+// Plain data passed from Rust. No logic here: every string and fraction
+// is computed in Rust (model.rs) and only displayed.
+
+import { Logo } from "components/logo.slint";
+
+// One line on an All usage card. `kind` 0 is a bar, 1 is text (no bar).
+// `header` is the account or plan, set on the first line of a group.
+export struct UsageLineData {
+    header: string,
+    label: string,
+    kind: int,
+    // 0..=1 of the bar that is filled (what is left, or what is used).
+    fill: float,
+    // "64%" / "$15.00" / "2.4M tokens"
+    amount: string,
+    // "Resets in 2d 4h" / "Resets 14:30". Empty when the line has no reset.
+    reset: string,
+    // 0 plenty left (blue), 1 running low (orange), 2 almost gone (red).
+    tone: int,
+    copy: string,
+    a11y: string,
+}
+
+// One provider card on All usage.
+export struct UsageCardData {
+    logo: Logo,
+    initial: string,
+    name: string,
+    stale: bool,
+    error: string,
+    hint: string,
+    connected: bool,
+    lines: [UsageLineData],
+}
+
+// One row on Priority. `heading` is set on the first row of a section
+// ("Pinned", "Running out", "Used up").
+export struct PriorityRowData {
+    heading: string,
+    logo: Logo,
+    initial: string,
+    title: string,
+    subtitle: string,
+    // "58% left". Empty when the row is used up.
+    percent: string,
+    reset: string,
+    // 0 plenty, 1 low, 2 almost gone. The ring uses the same scale.
+    tone: int,
+    used-up: bool,
+    track-path: string,
+    arc-path: string,
+    copy: string,
+    a11y: string,
+}
+
+// ---- Settings ----
+export struct ProviderToggleData {
+    logo: Logo,
+    initial: string,
+    name: string,
+    // "Connected", "Not signed in", "Turned off" ...
+    state: string,
+    enabled: bool,
+}
+
+// ---- Add account ----
+export struct ConnectorData {
+    logo: Logo,
+    initial: string,
+    name: string,
+    // Short name on the Add account page: "Claude", "ChatGPT".
+    label: string,
+    // "Connected", "Not signed in", "Not supported yet" ...
+    state: string,
+    // How to connect, e.g. "Run `claude` in a terminal and sign in".
+    how: string,
+    connected: bool,
+}
