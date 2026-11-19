@@ -1,7 +1,7 @@
 //! Snapshot -> plain rows for the popup. Pure and unit-tested; the Slint
 //! files only display what this produces.
 //!
-//! The home popup follows the OpenUsage menu (MIT; see THIRD_PARTY.md):
+//! The home popup follows the OpenUsage menu (MIT; see README.md, License and acknowledgements):
 //! Priority (pinned, running out, used up) and All usage (one card per
 //! provider). The menu shows what is left and when it resets. Pace stays
 //! in the CLI, the tray tooltip and notifications.

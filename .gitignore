@@ -6,7 +6,7 @@
 #   crates/tray/ui/icons/*.svg            interface icons and provider logos (embedded)
 #   crates/tray/ui/fonts/*.ttf            Geist (embedded)
 #   crates/core/tests/fixtures/*.json     sanitised test responses
-#   README.md, CHANGELOG.md, THIRD_PARTY.md, licence texts
+#   README.md, CHANGELOG.md, licence texts
 #   .github/                              CI and funding
 #   scripts/cargo.cmd                     build helper
 # Everything below stays on this PC only.
@@ -144,3 +144,8 @@ $RECYCLE.BIN/
 *.bak
 *.orig
 *.rej
+
+# ---- Local notes ----
+# Detailed third-party sources stay local; README.md has the credits and
+# the licence texts ship next to the fonts and icons.
+/THIRD_PARTY.md

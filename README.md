@@ -1,153 +1,184 @@
 # Quota
 
-How much of your AI coding subscription limits you have left, and when they
-reset. A small Windows tray app and CLI, local only: no account, no server,
-no telemetry.
+**See how much of your AI coding limits you have left, and when they reset, from the Windows taskbar.**
 
-The tray popup has two views. **Priority** lists pinned limits, limits that
-are running out, and limits that are used up. **All usage** is one card per
-provider, with a bar and a reset time. Pace and the burn budget (how fast you
-can use what is left and still make the reset: `0.5%/day`, `14%/h`, or
-`50% in 12m` when less than an hour remains) stay in the CLI, the tooltip,
-notifications and JSON.
+Quota is a small Windows tray app and command-line tool for Claude Code,
+Codex / ChatGPT, Cursor, GitHub Copilot and OpenRouter. It reads the sign-in
+each tool already keeps on your PC. It runs entirely on your machine, with no
+account, no server and no telemetry.
 
-- **Tray** (`quota-tray.exe`): a ring for the percent left of the most urgent
-  limit, a tooltip with the top 3, a popup on click, and notifications at
-  30% / 10% left or when your pace runs out before the reset.
-- **CLI** (`quota.exe`): limits, tokens and installed tools, as a table on a
-  terminal, tab-separated when piped, or versioned JSON.
-- **MCP server** (`quota mcp`): lets an agent such as Claude Code ask what is
-  left before it starts a long task.
-- **Light on resources.** Nothing UI-related exists until you click the tray
-  icon; the popup window is destroyed when it closes. No WebView, Electron or
-  Tauri.
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Getting started](#getting-started)
+- [Using the tray app](#using-the-tray-app)
+- [Supported providers](#supported-providers)
+- [Command-line interface](#command-line-interface)
+- [MCP server for agents](#mcp-server-for-agents)
+- [Configuration](#configuration)
+- [Privacy and security](#privacy-and-security)
+- [Building from source](#building-from-source)
+- [Contributing a provider](#contributing-a-provider)
+- [Performance](#performance)
+- [Support the project](#support-the-project)
+- [License and acknowledgements](#license-and-acknowledgements)
 
-## Install
+## Features
 
-Build from source (Rust 1.82 or later, Windows 10 1809 or later, x64):
+- **Always visible.** The tray icon is a ring showing what is left of your
+  most urgent limit. Hover for the top three; click for the full picture.
+- **Two views.** *Priority* shows only what needs attention: pinned limits,
+  limits running out, and limits that are used up. *All usage* shows every
+  limit for every provider, with a bar and its reset time.
+- **Early warnings.** Windows notifications at 30% and 10% left, and when
+  your current pace would use up a limit before it resets.
+- **Today's tokens.** Token counts for Claude Code and Codex, read from their
+  own local session logs.
+- **Command line and agents.** `quota.exe` prints limits as a table, as
+  tab-separated text or as versioned JSON. `quota mcp` lets an agent such as
+  Claude Code check what is left before a long task.
+- **Light on resources.** No WebView, Electron or browser engine. The popup
+  window exists only while it is open; with it closed, Quota uses about
+  0.2 MB of private memory and no measurable CPU.
+- **Native feel.** Light and dark themes that follow Windows, Windows 11
+  rounded corners and shadow, full keyboard control, and no animation when
+  Windows *Animation effects* is off.
 
-```sh
+## Requirements
+
+| | |
+|---|---|
+| Operating system | Windows 10 version 1809 or later, or Windows 11 (x64) |
+| To build | Rust 1.82 or later (MSVC or GNU toolchain) |
+| To show data | At least one supported tool signed in on this PC |
+
+## Installation
+
+Prebuilt downloads are not available yet. Build from source:
+
+```bat
+git clone https://github.com/Abiram08/quota.git
+cd quota
 cargo build --release
-cargo install --path crates/cli   # puts quota.exe on your PATH (~\.cargo\bin)
 ```
 
-Run `target\release\quota-tray.exe` for the tray. There are no prebuilt
-downloads yet.
+This produces two programs in `target\release\`:
 
-## Connecting tools
+| File | What it is |
+|---|---|
+| `quota-tray.exe` | The tray app. Run it, then turn on *Start with Windows* in Settings or the tray menu. |
+| `quota.exe` | The command-line tool. Run `cargo install --path crates/cli` to put it on your `PATH`. |
 
-Quota has **no account and no server**, so there is nothing to sign up for.
-You connect a tool by signing in to that tool on this PC, and Quota reads
-that login read-only:
+## Getting started
+
+Quota has no login of its own. To connect a tool, sign in to that tool on
+this PC; Quota reads its sign-in read-only.
 
 | Tool | How to connect |
 |---|---|
 | Claude Code | Run `claude` and sign in |
-| Codex | Run `codex login` |
+| Codex / ChatGPT | Run `codex login` |
 | Cursor | Sign in inside Cursor |
-| GitHub Copilot | Sign in to Copilot in your editor (or in OpenCode) |
+| GitHub Copilot | Sign in to Copilot in your editor, or in OpenCode |
 | OpenRouter | Set `OPENROUTER_API_KEY`, or sign in to OpenRouter in OpenCode |
 
-## The popup
+Then click the Quota icon in the notification area. If nothing is connected
+yet, choose **Add account** to see each tool's state and how to sign in, then
+**Check again**.
 
-The popup opens on **Priority**. A switch at the top moves to **All usage**.
-Codex is labelled ChatGPT here; the provider id in config, snapshots and the
-CLI stays `codex`.
+## Using the tray app
 
-**Priority** has three sections:
+### Priority
 
-- **Pinned** — limits named in `pinned` (`provider/Label`, for example `claude/Weekly`).
-- **Running out** — percent left at or under the higher notice threshold (30 unless you changed it), lowest first.
-- **Used up** — nothing left. The row is dim and says "Used up".
+The popup opens on Priority, which lists only the limits that need attention:
 
-A healthy limit that is not pinned is only on All usage. Each row is the provider logo in a ring, the limit name, whose it is ("Claude · Work"), how much is left, and when it resets. Click a row to copy the reset time. When nothing needs attention, Priority says so and offers *Show all usage*.
-
-**All usage** is one card per connected provider: logo, name, and the plan on the right. Each limit is a name and its reset time ("Resets in 3h 22m"; click to copy), over a thin bar with the figure in a fixed column on the right. The bar is blue when plenty is left, orange under the higher threshold, red under the lower one. The figure is the same percent the Priority row calls "left" (or "used", from Settings). Other units show the amount (`$15.00`, `50 req`) instead. Claude and ChatGPT add a Today line when today's session logs contain tokens. Providers that are not connected share one *Not connected* card with their reasons and a *How to connect* button. A window that has ended shows "—" and "Window ended · refresh to update".
-
-With nothing connected, the home says *Nothing connected yet* with an *Add account* button. **Add account** lists the five tools Quota can meter, with each one's state. Quota has no login of its own: opening a row shows how to sign in to that tool on this PC, and *Check again* re-reads the sign-ins.
-
-The footer says when the next check is. Priority has a copy button for the summary. "…" opens Refresh, Copy summary, Add account, Settings, Theme, Sponsor Quota, About Quota and Quit.
-
-| Page | What it answers |
+| Section | Shows |
 |---|---|
-| **Priority** | Pinned, running out, and used up. |
-| **All usage** | Every limit, by provider, plus today's tokens for Claude and ChatGPT. |
-| **Add account** | The five metered tools, whether each is connected, and how to sign in. |
-| **Settings** | Start with Windows, notifications, how often to check (3, 5, 10 or 15 min), theme, show left or used, reset times as a countdown or a clock, and which providers to show. Each change is saved straight into config.toml, comments kept. |
+| **Pinned** | Limits you named in `pinned` in the config file, for example `claude/Weekly` |
+| **Running out** | Limits at or below your higher notification threshold (30% by default), lowest first |
+| **Used up** | Limits with nothing left |
 
-There is no Quota login. Each tool keeps its own sign-in on your PC; Quota
-reads it (read-only) and calls that tool's own usage endpoint.
+Each row shows the limit, whose it is (for example *Claude · Work*), how much
+is left and when it resets. Click a row to copy its reset time.
 
-Keys: `←` `↑` open Priority, `→` `↓` open All usage, `R` or `F5` refreshes,
-`T` cycles the theme, `Esc` closes Add account, Settings or the menu, and
-then the popup.
+### All usage
 
-Right-click the tray icon for *Refresh now*, *Start with Windows* (HKCU `Run`
-key), *Theme*, *Open config file*, *Open data folder* and *Quit*.
+One card per connected provider, showing its plan and every limit. Each limit
+has a bar: blue while plenty is left, orange when it runs low, red when it is
+almost gone. The percentage or amount (`$15.00`, `50 req`) is always written
+beside the bar, so colour is never the only cue. Click a limit to copy its
+reset time. Tools that are not connected are grouped in one card, with the
+reason and a **How to connect** button.
 
-### Look
+### Settings
 
-- **One grid.** Everything sits on a 4px grid defined in `crates/tray/ui/theme.slint`: 8px between a label and what it labels, 16px between items and at the popup's edge, 24px between sections. Every page shares one left and one right edge; rows that highlight on hover reach 8px past it so their text stays on it.
-- **Hit targets.** Controls are 32px tall and rows 44px (52px with a second line), the same on every page. Whole rows toggle in Settings, not only the switch.
-- **Colour means data.** Surfaces and buttons are neutral, with one filled primary action per page. Bars are blue, orange or red by how much is left, and the figure is written beside the bar, so colour is never the only cue. Logos carry their brand colour (a near-black brand uses the text colour).
-- **Type.** **Geist** (SIL OFL 1.1, embedded in the exe; see THIRD_PARTY.md) in four sizes (12, 14, 16, 24) and three weights. Labels are sentence case.
-- Text contrast is at least 4.5:1 in both themes, and bar fills at least 3:1 against the track, checked by a test (`crates/tray/src/theme_tests.rs`). The same test fails if a colour is written anywhere but `theme.slint`.
-- The popup always reopens on Priority. Add account and Settings replace the home and have a back button. On Windows 11 the popup has rounded corners, the system shadow and a border in the theme colour.
-- Theme: **System** (follows Windows), **Light** or **Dark**, from Settings, the "…" menu, `T`, the tray menu, or `theme` in config.toml (saved in place, comments kept). Windows *Animation effects* off turns every animation off.
-- Icons: Lucide outline icons (ISC) for the interface. Provider logos are single-colour SVGs from simple-icons; they are trademarks used only to identify the provider, with sources and licences in [THIRD_PARTY.md](THIRD_PARTY.md).
+Open Settings from the **…** menu. Every change is saved immediately to
+`config.toml`, and any comments you added to that file are kept.
 
-## Providers
+| Setting | Options |
+|---|---|
+| Start with Windows | On or off |
+| Notifications | On or off |
+| Check every | 3, 5, 10 or 15 minutes |
+| Theme | System, Light or Dark |
+| Show | What is left, or what is used |
+| Reset times | Countdown (*Resets in 3h 22m*) or clock time |
+| Providers | Show or hide each provider |
 
-| Provider | Credentials (read-only) | Usage source | Status |
+### Keyboard shortcuts
+
+| Key | Action |
+|---|---|
+| `←` or `↑` | Priority |
+| `→` or `↓` | All usage |
+| `R` or `F5` | Refresh now |
+| `T` | Cycle the theme |
+| `Esc` | Close the current page or menu, then the popup |
+
+### Tray menu
+
+Right-click the tray icon for **Refresh now**, **Start with Windows**,
+**Theme**, **Open config file**, **Open data folder** and **Quit**.
+
+## Supported providers
+
+| Provider | Sign-in read from | Usage source | Status |
 |---|---|---|---|
-| Claude Code | `%USERPROFILE%\.claude\.credentials.json` (`CLAUDE_CONFIG_DIR`) | Claude Code's own cache in `~\.claude.json`, else `GET api.anthropic.com/api/oauth/usage` | verified |
-| Codex / ChatGPT | `%USERPROFILE%\.codex\auth.json` (`CODEX_HOME`) | `GET chatgpt.com/backend-api/wham/usage` | verified (Free plan) |
-| Cursor | `%APPDATA%\Cursor\User\globalStorage\state.vscdb` (SQLite, read-only) | `api2.cursor.sh` `DashboardService/GetCurrentPeriodUsage` | endpoint found, **response unverified**; installs with token encryption at rest show "unavailable" |
-| GitHub Copilot | `%LOCALAPPDATA%\github-copilot\apps.json` / `hosts.json`, else OpenCode's `auth.json` (`github-copilot`) | `GET api.github.com/copilot_internal/user` | endpoint verified with both token sources, **quota fields unverified** (test account had no plan) |
-| OpenRouter | `OPENROUTER_API_KEY`, else OpenCode's `auth.json` (`openrouter.key`) | `GET openrouter.ai/api/v1/key` and `/api/v1/credits` (documented) | verified (free tier); free-model daily reset assumed 00:00 UTC |
+| Claude Code | `%USERPROFILE%\.claude\.credentials.json` | Claude Code's own cache, else `api.anthropic.com` | Verified |
+| Codex / ChatGPT | `%USERPROFILE%\.codex\auth.json` | `chatgpt.com` usage endpoint | Verified (Free plan) |
+| Cursor | Cursor's local state database (read-only) | `api2.cursor.sh` | Endpoint found; response not yet verified |
+| GitHub Copilot | Copilot's or OpenCode's sign-in files | `api.github.com` | Endpoint verified; quota fields not yet verified |
+| OpenRouter | `OPENROUTER_API_KEY`, or OpenCode's sign-in | `openrouter.ai` (documented API) | Verified (free tier) |
 
-### The other AI tools
+These usage endpoints are not public APIs and may change. Quota ignores
+fields it does not know and tolerates missing ones. If a provider fails, only
+that provider shows as *unavailable*, with a short reason; the others are
+unaffected, and its last good data is kept and marked as older.
 
-`quota tools list` checks 25 AI coding tools (Claude Code, Codex, Cursor, Copilot,
-OpenRouter, Gemini CLI, Antigravity, Windsurf, Zed, Factory Droid, OpenCode,
-Grok CLI, Kiro, Amazon Q, Cline, Roo Code, Kilo Code, Continue, Augment,
-Tabnine, Trae, Qwen Code, Amp, Zencoder, Blackbox) by looking for their own
-files. It sends nothing over the network. Five are metered. The rest are
-listed as **not metered yet** by `quota tools list`, because their usage endpoints could not be verified on Windows. Quota
-does not guess endpoints or response shapes. On the dev machine, Gemini CLI's
-login had expired (and Quota never refreshes tokens), and Grok CLI's usage
-call is not a plain HTTP endpoint.
+`quota tools list` also detects 20 other AI coding tools on your PC, such as
+Gemini CLI, Windsurf and Cline, and marks them *not metered yet*. Quota adds
+a provider only after its usage source has been verified on Windows; it
+never guesses an endpoint or a response format.
 
-All endpoints are undocumented and may change. Parsing ignores unknown fields
-and tolerates missing ones. A failing provider shows as *unavailable* with a
-short reason (or keeps its last data marked *stale*).
+## Command-line interface
 
-**Quota never refreshes, rewrites, or deletes another tool's tokens, and
-never logs them.** If a token has expired, run that tool once so it refreshes
-its own login.
-
-## Usage
-
-The CLI follows Vercel's [CLI design guidelines](https://vercel.com/design/cli):
-`quota <group> <action> [options]`, results on stdout, everything else on
-stderr, one JSON document with `--json`, and exit codes 0 (done, including
-empty results), 1 (failed), 2 (usage error) and 130 (Ctrl+C).
+`quota.exe` follows the shape `quota <group> <action> [options]`, modelled on
+Vercel's [CLI design guidelines](https://vercel.com/design/cli).
 
 ```text
-quota                         # same as quota limits list
-quota limits list             # every limit, from the saved snapshot (no network)
+quota                        Same as quota limits list
+quota limits list            Every limit, from the last saved check (no network)
 quota limits list --provider claude,codex
-quota refresh                 # fetch now from each provider, save, then list
-quota status                  # one line about the most urgent limit
-quota tokens list             # tokens by tool, from local session logs
-quota tools list              # which of 25 AI tools are on this PC, and which are metered
-quota config path             # where config.toml is (config init creates it)
-quota mcp                     # MCP server for agents (see below)
-quota help <command>          # also: quota <command> --help, --help --json
+quota refresh                Check every provider now, then list
+quota status                 One line about the most urgent limit
+quota tokens list            Tokens by tool, from local session logs
+quota tools list             AI tools on this PC, and which are metered
+quota config path            Where the config file is (quota config init creates it)
+quota mcp                    Run the MCP server
+quota help <command>         Help for a command (also <command> --help)
 ```
 
-On a terminal, `quota` prints when the data was updated, one summary, and a
-table:
+On a terminal, `quota` prints a summary and a table:
 
 ```text
 $ quota
@@ -161,109 +192,74 @@ Provider    Limit                Left             Resets      Status
 claude      Session (5h)         █████░░░░░  53%  in 4h 2m    Out in 1h 8m
 claude      Weekly               █░░░░░░░░░   8%  in 1d 10h   Out in 11h 40m
 codex       Monthly              █░░░░░░░░░  11%  in 18d      Out in 1d 9h
-cursor      —                    —                —           Not connected: Sign-in token is encrypted; Quota can't read it
 openrouter  Free models (daily)  ██████████ 100%  in 14h 59m  6.8%/h
 ```
 
-Bars show the amount **left**: a full bar means plenty. Status is the burn
-budget (how fast you can use the rest and still make it to the reset), or
-"Out in …" when your current pace runs out first. A window whose reset time
-has passed shows `—` and "Refresh to update", not the old window's numbers.
+**Status** is the burn budget: how fast you can use the rest and still reach
+the reset. It reads *Out in …* when your current pace would run out first.
 
-Piped, the same command prints a tab-separated table with a header row,
-plain numbers and ISO 8601 UTC times, so it works with `findstr`, `sort` or
-a spreadsheet. `--json` prints one document (`quota.limits.v2`, camelCase
-keys); the MCP tools return the same documents.
+- **Scripts.** When piped, output is tab-separated with plain numbers and ISO
+  8601 UTC times, ready for `findstr`, `sort` or a spreadsheet. `--json`
+  prints one versioned document (`quota.limits.v2`).
+- **Output streams.** Results go to stdout; progress, warnings and errors go
+  to stderr. Errors name the command that fixes them.
+- **Exit codes.** `0` success (including empty results), `1` failure, `2`
+  usage error, `130` cancelled with Ctrl+C.
+- **Colour.** Used only on a terminal. It is turned off by `--no-color`,
+  `NO_COLOR` or `TERM=dumb`, and controlled by `FORCE_COLOR`.
+- **Status line.** `quota status` prints one line for a shell prompt or an
+  editor status line, for example in Claude Code's `settings.json`:
 
-```text
-$ quota | findstr codex
-codex	Monthly	11	2026-12-05T22:52:38Z	Out in 1d 9h
-```
+  ```json
+  { "statusLine": { "type": "command", "command": "quota status" } }
+  ```
 
-Warnings, progress and receipts go to stderr: "This data is from 3h ago"
-with the command that updates it, "Refreshing 5 providers…", "✓ Refreshed 3
-providers in 1.2s". Providers that are not connected are skipped, not failed;
-`quota refresh` exits 1 only when a connected provider failed. Errors name
-what failed and give the command that fixes it:
+`quota tokens list` reads only the token counts and dates from Claude Code
+and Codex session logs, never message content. The first run reads every
+log; later runs read only new lines.
 
-```text
-$ quota claude
-✗ Unknown command claude for quota.
-
-To list one provider's limits, run:
-    quota limits list --provider claude
-```
-
-With `--json`, a failure writes nothing to stdout and one line to stderr:
-`{"status":"error","reason":"unknown_command","message":"…","next":[…]}`.
-
-`quota status` prints one line, for a shell prompt or a status line, e.g.
-in Claude Code's `settings.json`:
-
-```json
-{ "statusLine": { "type": "command", "command": "quota status" } }
-```
-
-`quota tokens list` counts what Claude Code (`~\.claude\projects`) and Codex
-(`~\.codex\sessions`) wrote to their own session logs. Counts include cached
-input tokens. Only the counts and dates are read, never message content. The
-first run reads every log (about 2 s for 360 MB); after that only new lines
-are read (about 40 ms), using `%LOCALAPPDATA%\quota\tokens-cache.json`.
-
-Color only on a terminal. Precedence: `--no-color`, then a non-empty
-`NO_COLOR`, then `FORCE_COLOR` (`0` means off), then `TERM=dumb`. Without
-color, glyphs become words (`Warning:`, `Error:`) and nothing else changes.
-Only the 16 standard ANSI colors are used, so your terminal theme applies.
-
-## MCP server
+## MCP server for agents
 
 `quota mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io)
-server on stdin and stdout, so an agent can check your limits before a long
-task, or tell you which tool still has room. Add it to Claude Code:
+server over standard input and output. To add it to Claude Code:
 
 ```sh
 claude mcp add quota -- quota mcp
 ```
 
-Other clients take the usual entry (use the full path to `quota.exe` if it
-is not on your PATH):
+For other clients, add this entry, using the full path to `quota.exe` if it
+is not on your `PATH`:
 
 ```json
 { "mcpServers": { "quota": { "command": "quota", "args": ["mcp"] } } }
 ```
 
-| Tool | What it returns | Network |
+| Tool | Returns | Network |
 |---|---|---|
-| `limits_list` | every limit (`quota.limits.v2`), optionally for some providers | none |
-| `limits_refresh` | fetches, saves, then the same document plus a refresh summary; reuses data less than a minute old | each provider's own usage endpoint |
-| `tokens_list` | tokens by tool (`quota.tokens.v2`) | none |
-| `tools_list` | AI tools on this PC and which are metered (`quota.tools.v1`) | none |
+| `limits_list` | Every limit, optionally for some providers | None |
+| `limits_refresh` | Checks every provider now, then the same as `limits_list` | Each provider's own usage endpoint |
+| `tokens_list` | Tokens by tool | None |
+| `tools_list` | AI tools on this PC and which are metered | None |
 
-Each result has the JSON in a text block and in `structuredContent`. The
-server speaks the current protocol revision (`2026-07-28`, stateless, with
-`server/discover`) and the `initialize` handshake of `2025-11-25` and
-earlier, which most clients still use. It writes nothing but protocol
-messages, logs nothing, and has no tool that changes a sign-in or a file
-other than Quota's own snapshot.
+The server supports MCP revision `2026-07-28` and the `initialize` handshake
+of `2025-11-25` and earlier. It never changes a sign-in or any file other
+than Quota's own data.
 
-Design review without a desktop: `quota-tray --preview out.bmp [--light|--dark]
-[--tab priority|usage] [--connect|--welcome|--settings|--menu|--about]
-[--scale 2]` renders the real popup off-screen to a bitmap.
-`quota-tray --bench-popup out.txt` measures popup open time, memory and idle CPU.
+## Configuration
 
-## Files
-
-| Path | What |
+| Path | Contents |
 |---|---|
-| `%APPDATA%\quota\config.toml` | poll interval, enabled providers, notification thresholds |
-| `%LOCALAPPDATA%\quota\snapshot.json` | last known limits (`quota.snapshot.v1`), shared by tray and CLI |
-| `%LOCALAPPDATA%\quota\notified.json` | which notifications already fired this window |
-| `%LOCALAPPDATA%\quota\tokens-cache.json` | per-day token totals and how far each session log was read |
+| `%APPDATA%\quota\config.toml` | Settings |
+| `%LOCALAPPDATA%\quota\snapshot.json` | The last known limits, shared by the tray app and the CLI |
+| `%LOCALAPPDATA%\quota\notified.json` | Notifications already shown for the current window |
+| `%LOCALAPPDATA%\quota\tokens-cache.json` | Daily token totals |
+
+Settings changes are saved to `config.toml`. You can also edit it directly:
 
 ```toml
-poll_interval_secs = 180              # min 60; failures back off up to 30 min
+poll_interval_secs = 180              # 60 or more; failures back off up to 30 minutes
 theme = "system"                      # system, light or dark
-pinned = ["claude/Weekly"]            # shown under Pinned on Priority
+pinned = ["claude/Weekly"]            # shown under Pinned
 usage_mode = "left"                   # left or used
 reset_timers = "relative"             # relative (countdown) or absolute (clock)
 enabled_providers = ["claude", "codex", "cursor", "copilot", "openrouter"]
@@ -274,54 +270,21 @@ thresholds_percent_left = [30, 10]
 pace_warnings = true
 ```
 
-`QUOTA_DATA_DIR` and `QUOTA_CONFIG_DIR` override the folders above. For
-development, point both at `.quota\` in the project (it is in `.gitignore`)
-so everything Quota writes stays inside the checkout:
+Set `QUOTA_CONFIG_DIR` and `QUOTA_DATA_DIR` to use other folders.
 
-```bat
-setx QUOTA_DATA_DIR "%CD%\.quota"
-setx QUOTA_CONFIG_DIR "%CD%\.quota"
-```
+## Privacy and security
 
-## Sponsors
+- **Local only.** No telemetry, analytics or update checks. Quota's only
+  network requests go to each provider's own usage endpoint, using the
+  sign-in you already have.
+- **Read-only sign-ins.** Quota never refreshes, rewrites or deletes another
+  tool's tokens. If a sign-in has expired, open that tool once and it will
+  renew its own.
+- **No secrets stored or logged.** Quota keeps no credentials of its own, and
+  tokens never appear in logs, errors or saved data.
+- **No accounts.** There is nothing to sign up for.
 
-Quota is free and has no ads, accounts or paid tier. If it saves you from
-hitting a limit mid-task, you can support its development:
-
-- **GitHub Sponsors:** <https://github.com/sponsors/Abiram08>
-- In the app: **… menu, Sponsor Quota** opens the same page in your browser.
-  Quota itself makes no request; it only hands the link to Windows.
-
-Sponsors who want to be listed here will appear below.
-
-<!-- sponsors -->
-_No sponsors yet. Be the first._
-<!-- /sponsors -->
-
-## License
-
-Quota's own code: MIT, as set in `Cargo.toml` (the `LICENSE` file is not
-added yet).
-
-The popup is built with [Slint](https://slint.dev) 1.18, which is offered
-under three licenses: GPL-3.0-only, the Slint Royalty-free License 2.0, or a
-paid commercial license. Quota uses the **Royalty-free License 2.0**, which
-allows free use in desktop apps (not embedded devices) on one condition:
-attribution, either the `AboutSlint` widget in the app's About screen or a
-Slint badge on the app's public web page. *About Quota* (in the "…" menu)
-shows it. Terms checked 2026-11; if you fork Quota, read
-<https://slint.dev/terms-and-conditions> again.
-
-Other dependencies and the provider logos are listed with their licenses in
-[THIRD_PARTY.md](THIRD_PARTY.md).
-
-## Privacy
-
-Everything stays local. No telemetry, and no update check. The only network
-requests go to each provider's own usage endpoint, using the login you
-already have. Quota stores no credentials of its own.
-
-## Building
+## Building from source
 
 ```sh
 cargo build --release
@@ -329,31 +292,43 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-Works with the `x86_64-pc-windows-msvc` or `-gnu` toolchain. Binaries land in
-`target/release/` (`quota.exe`, `quota-tray.exe`). `.cargo/config.toml` sets
-`jobs = 2` for low-RAM machines; delete it if that does not apply to you.
+The project is a Cargo workspace:
 
-With the GNU toolchain, the project path must not contain a space: GNU
-`dlltool` fails on it. If yours does, use `scripts\cargo` in place of
-`cargo` (it takes the same arguments):
+| Crate | Contents |
+|---|---|
+| `crates/core` | Providers, limits, pace calculations, configuration and saved data |
+| `crates/cli` | `quota.exe` and the MCP server |
+| `crates/tray` | `quota-tray.exe`: the tray icon and the [Slint](https://slint.dev) popup |
+
+`.cargo/config.toml` limits the build to two parallel jobs for machines with
+little memory; delete it if you don't need that.
+
+**GNU toolchain and paths with spaces.** The GNU `dlltool` fails when the
+project path contains a space. Use `scripts\cargo` in place of `cargo`; it
+takes the same arguments, and runs cargo through a junction (`<drive>:\quota`)
+that it creates. The junction is only a pointer: deleting it deletes nothing.
+
+**UI tools.** The popup's spacing, sizes and colours are defined only in
+`crates/tray/ui/theme.slint` on a 4 px grid, and tests enforce this together
+with WCAG contrast in both themes. To check the UI without a desktop session:
 
 ```bat
-scripts\cargo build --release
-scripts\cargo test --workspace
+quota-tray --preview out.bmp [--light | --dark] [--tab priority | usage]
+           [--settings | --connect | --welcome | --menu | --about] [--scale 2]
+quota-tray --bench-popup out.txt [--tab priority | usage]
 ```
 
-It runs cargo through a junction `<drive>:\quota` that points at the project,
-and creates that junction when it is missing. The junction is only a pointer:
-deleting it deletes nothing, and the build output still lands in this
-project's `target/`. When the path has no space, the script just runs cargo.
+`--preview` renders the real popup to a bitmap, and `--bench-popup` measures
+open time, memory and idle CPU. To keep test data out of your real profile,
+point `QUOTA_DATA_DIR` and `QUOTA_CONFIG_DIR` at `.quota\` in the project
+folder, which git ignores.
 
-## How to add a provider
+## Contributing a provider
 
-1. Find the real data first: where the tool stores its login on Windows
-   (files under `%USERPROFILE%`, `%APPDATA%`, `%LOCALAPPDATA%`, Credential
-   Manager, SQLite) and which endpoint the tool itself calls. Do not guess.
-2. Create `crates/core/src/providers/<id>.rs` implementing
-   [`Provider`](crates/core/src/lib.rs):
+1. **Find the real data source first.** Locate where the tool stores its
+   sign-in on Windows and which endpoint the tool itself calls. Do not guess.
+2. **Implement the provider** in `crates/core/src/providers/<id>.rs`, using
+   the [`Provider`](crates/core/src/lib.rs) trait:
 
    ```rust
    pub struct Foo;
@@ -368,28 +343,56 @@ project's `target/`. When the path has no space, the script just runs cargo.
    }
    ```
 
-   - Keep parsing in a pure `parse_*` function over `serde_json::Value` and use
-     the tolerant helpers in `json.rs` (`num_any`, `ts_any`, `at`, …).
-   - Return `ProviderError::{NotConfigured, Auth, Network, Parse, Unavailable}`
-     with a short message that never contains a token. Do not panic.
-   - Set `window_start` and `resets_at` when known so pace math, the burn
-     budget and "Out in …" work.
-3. Register it in `providers/mod.rs` (`ALL_IDS` and `by_id`).
-4. Add tests with a sanitised fixture in `crates/core/tests/fixtures/`.
+   Keep parsing in a pure `parse_*` function using the tolerant helpers in
+   `json.rs`. Return a `ProviderError` with a short message that never
+   contains a token, and never panic. Set `window_start` and `resets_at` when
+   known, so pace warnings work.
+3. **Register it** in `providers/mod.rs` (`ALL_IDS` and `by_id`).
+4. **Add tests** with a sanitised fixture in `crates/core/tests/fixtures/`.
 
-## Measurements
+## Performance
 
-Release binaries from this machine, rebuilt on 2026-11-19. Popup numbers come
-from `quota-tray --bench-popup <out.txt> --tab priority|usage`: the popup is
-opened, measured, closed and measured again with no tray icon.
+Measured on the development machine with release builds (2026-11-19):
 
-| | |
+| Measure | Result |
 |---|---|
-| `quota.exe` | 2,396,672 bytes |
-| `quota-tray.exe` | 12,986,880 bytes (Slint's software renderer and bundled SQLite) |
-| Popup, first open | 526 ms (Priority), 596 ms (All usage) |
-| Popup, reopen | 77 ms (Priority), 83 ms (All usage) |
+| `quota-tray.exe` size | 12.4 MB, including the UI renderer and SQLite |
+| `quota.exe` size | 2.3 MB |
+| Popup first open | 526 ms (Priority), 596 ms (All usage) |
+| Popup reopen | 77 ms (Priority), 83 ms (All usage) |
 | Private memory, popup open | 3.5 MB (Priority), 4.7 MB (All usage) |
 | Private memory, popup closed | 0.2 MB |
 | Idle CPU, popup closed | 0 ms over 30 s |
-| `quota tokens list`, cached | about 40 ms (first full scan of 360 MB of logs: 2.3 s) |
+| `quota tokens list`, cached | About 40 ms |
+
+## Support the project
+
+Quota is free, with no ads, accounts or paid tier. If it saves you from
+hitting a limit in the middle of a task, you can support its development
+through [GitHub Sponsors](https://github.com/sponsors/Abiram08), or choose
+**Sponsor Quota** in the app's **…** menu. Quota opens the page in your
+browser and makes no request itself.
+
+## License and acknowledgements
+
+Quota is released under the MIT License, as declared in `Cargo.toml`. A
+`LICENSE` file has not been added yet.
+
+- **[Slint](https://slint.dev) 1.18** draws the popup, used under the Slint
+  Royalty-free License 2.0, which requires attribution: *About Quota* shows
+  the Slint badge. The terms were checked in November 2026; forks should
+  check <https://slint.dev/terms-and-conditions> again.
+- **[Geist](https://github.com/vercel/geist-font)** 1.9.2 by Vercel is the
+  interface font, under the SIL Open Font License 1.1. The licence ships in
+  `crates/tray/ui/fonts/OFL.txt`.
+- **[Lucide](https://lucide.dev)** 0.460.0 provides the interface icons,
+  under the ISC License. The licence ships in
+  `crates/tray/ui/icons/LUCIDE-LICENSE.txt`.
+- **[simple-icons](https://simpleicons.org)** 15.22.0 provides the provider
+  logos, under CC0 1.0.
+- The popup layout follows **[OpenUsage](https://github.com/robinebers/openusage)**
+  by Robin Ebers (MIT). No code or assets from OpenUsage are included.
+
+Claude, ChatGPT, Codex, Cursor, GitHub Copilot, OpenRouter and other product
+names and logos are trademarks of their respective owners. They are used
+only to identify each provider, and their use does not imply endorsement.
