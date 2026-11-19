@@ -1,0 +1,255 @@
+// Settings. Each change is saved straight into config.toml (in place,
+// comments kept) by Rust, so there is no Save button: one save model.
+//
+// Grid (theme.slint): 16px gutter, 16px under the header, 24px between
+// groups, 8px from a group's
+// label to its card. Every row is 52px with 16px side padding; its control
+// is centred on the row and ends on the card's right padding line. Every
+// segmented control has one width, so their left edges line up too.
+
+import { Theme } from "../theme.slint";
+import { LogoGlyph, Brand } from "../components/logo.slint";
+import { Segmented, Card, Divider, Switch, Button, PageHeader, SectionLabel } from "../components/controls.slint";
+import { ProviderToggleData } from "../model.slint";
+
+// Title, and an optional second line, on the row's left.
+component RowText inherits VerticalLayout {
+    in property <string> title;
+    in property <string> detail;
+    alignment: center;
+    spacing: Theme.space-2;
+    horizontal-stretch: 1;
+    Text {
+        text: root.title;
+        color: Theme.text;
+        font-family: Theme.font-family;
+        font-size: Theme.font-body;
+        font-weight: Theme.weight-medium;
+        overflow: elide;
+    }
+    if root.detail != "": Text {
+        text: root.detail;
+        color: Theme.text-secondary;
+        font-family: Theme.font-family;
+        font-size: Theme.font-meta;
+        wrap: word-wrap;
+    }
+}
+
+// The whole row toggles, not only the switch.
+component SwitchRow inherits Rectangle {
+    in property <string> title;
+    in property <string> detail;
+    in property <bool> on;
+    callback toggled();
+    min-height: Theme.row-height-2;
+    background: row-touch.pressed ? Theme.press : row-touch.has-hover ? Theme.hover : transparent;
+    animate background { duration: Theme.motion-hover; }
+    HorizontalLayout {
+        padding-left: Theme.gutter;
+        padding-right: Theme.gutter;
+        padding-top: Theme.space-8;
+        padding-bottom: Theme.space-8;
+        spacing: Theme.space-16;
+        RowText { title: root.title; detail: root.detail; }
+        VerticalLayout {
+            alignment: center;
+            Switch {
+                on: root.on;
+                hot: row-touch.has-hover;
+                label: root.title;
+                toggled => { root.toggled(); }
+            }
+        }
+    }
+    row-touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.toggled(); }
+    }
+}
+
+component ChoiceRow inherits HorizontalLayout {
+    in property <string> title;
+    in property <[string]> items;
+    in property <int> current;
+    callback selected(int);
+    min-height: Theme.row-height-2;
+    padding-left: Theme.gutter;
+    padding-right: Theme.gutter;
+    spacing: Theme.space-16;
+    RowText { title: root.title; }
+    VerticalLayout {
+        alignment: center;
+        Segmented {
+            width: Theme.choice-width;
+            items: root.items;
+            current: root.current;
+            selected(i) => { root.selected(i); }
+        }
+    }
+}
+
+// A group: its label 8px above its card.
+component Group inherits VerticalLayout {
+    in property <string> label;
+    spacing: Theme.space-8;
+    SectionLabel { text: root.label; }
+    Card {
+        VerticalLayout {
+            @children
+        }
+    }
+}
+
+export component SettingsPage inherits VerticalLayout {
+    in property <bool> autostart;
+    in property <bool> notify;
+    in property <int> theme-index;
+    // 0 = what is left, 1 = what is used.
+    in property <int> usage-index;
+    // 0 = countdown, 1 = clock time.
+    in property <int> reset-index;
+    // -1 when config.toml has an interval that is not one of the choices.
+    in property <int> poll-index;
+    in property <string> poll-note;
+    in property <[ProviderToggleData]> providers;
+    callback toggle-autostart();
+    callback toggle-notify();
+    callback theme-selected(int);
+    callback usage-selected(int);
+    callback reset-selected(int);
+    callback poll-selected(int);
+    callback toggle-provider(int);
+    callback open-config();
+    callback done();
+    padding: Theme.gutter;
+    // The header is 16 above the content, as on every page.
+    spacing: Theme.space-16;
+
+    PageHeader {
+        title: "Settings";
+        back-clicked => { root.done(); }
+    }
+
+    VerticalLayout {
+        spacing: Theme.space-24;
+
+        Group {
+            label: "General";
+            SwitchRow {
+                title: "Start with Windows";
+                detail: "Quota is in the tray from sign-in.";
+                on: root.autostart;
+                toggled => { root.toggle-autostart(); }
+            }
+            Divider { inset: Theme.gutter; }
+            SwitchRow {
+                title: "Notifications";
+                detail: "When a limit runs low, and when your pace would use it up before it resets.";
+                on: root.notify;
+                toggled => { root.toggle-notify(); }
+            }
+            Divider { inset: Theme.gutter; }
+            ChoiceRow {
+                title: "Check every";
+                items: ["3m", "5m", "10m", "15m"];
+                current: root.poll-index;
+                selected(i) => { root.poll-selected(i); }
+            }
+            if root.poll-note != "": HorizontalLayout {
+                padding-left: Theme.gutter;
+                padding-right: Theme.gutter;
+                padding-bottom: Theme.space-12;
+                Text {
+                    text: root.poll-note;
+                    color: Theme.text-secondary;
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-meta;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        Group {
+            label: "Display";
+            ChoiceRow {
+                title: "Theme";
+                items: ["System", "Light", "Dark"];
+                current: root.theme-index;
+                selected(i) => { root.theme-selected(i); }
+            }
+            Divider { inset: Theme.gutter; }
+            ChoiceRow {
+                title: "Show";
+                items: ["Left", "Used"];
+                current: root.usage-index;
+                selected(i) => { root.usage-selected(i); }
+            }
+            Divider { inset: Theme.gutter; }
+            ChoiceRow {
+                title: "Reset times";
+                items: ["Countdown", "Clock"];
+                current: root.reset-index;
+                selected(i) => { root.reset-selected(i); }
+            }
+        }
+
+        Group {
+            label: "Providers";
+            for p[i] in root.providers: VerticalLayout {
+                if i > 0: Divider { inset: Theme.gutter + Theme.icon + Theme.space-12; }
+                Rectangle {
+                    min-height: Theme.row-height-2;
+                    background: provider-touch.pressed ? Theme.press : provider-touch.has-hover ? Theme.hover : transparent;
+                    animate background { duration: Theme.motion-hover; }
+                    HorizontalLayout {
+                        padding-left: Theme.gutter;
+                        padding-right: Theme.gutter;
+                        spacing: Theme.space-12;
+                        VerticalLayout {
+                            alignment: center;
+                            LogoGlyph {
+                                logo: p.logo;
+                                initial: p.initial;
+                                size: Theme.icon;
+                                tint: p.enabled ? Brand.tint(p.logo) : Theme.text-dim;
+                            }
+                        }
+                        RowText { title: p.name; detail: p.state; }
+                        VerticalLayout {
+                            alignment: center;
+                            Switch {
+                                on: p.enabled;
+                                hot: provider-touch.has-hover;
+                                label: "Show " + p.name;
+                                toggled => { root.toggle-provider(i); }
+                            }
+                        }
+                    }
+                    provider-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.toggle-provider(i); }
+                    }
+                }
+            }
+        }
+
+        // What the page does with your changes, and the one other way in.
+        HorizontalLayout {
+            spacing: Theme.space-12;
+            Text {
+                text: "Changes save right away.";
+                color: Theme.text-secondary;
+                font-family: Theme.font-family;
+                font-size: Theme.font-meta;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                wrap: word-wrap;
+            }
+            Button {
+                text: "Open config file";
+                clicked => { root.open-config(); }
+            }
+        }
+    }
+}

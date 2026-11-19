@@ -1,0 +1,470 @@
+// Home, in the shape of the OpenUsage menu: Priority (pinned, running
+// out, used up) and All usage (one card per connected provider, then the
+// ones that are not connected, grouped). Rust computes every string,
+// fraction and ring path.
+//
+// Grid (theme.slint): the 16px gutter is the left and right edge of every
+// card and row. Inside a card: 16px padding, 16px between limits, 8px
+// between a limit's name and its bar. Bars all start on the card's text
+// edge and end 12px before a fixed figure column, so every bar in the
+// popup has the same length and every figure the same right edge.
+
+import { Theme } from "../theme.slint";
+import { Logo, LogoGlyph, Brand } from "../components/logo.slint";
+import { Card, Divider, Button, SectionLabel } from "../components/controls.slint";
+import { UsageCardData, UsageLineData, PriorityRowData } from "../model.slint";
+
+// The figure's colour: ink while there is room, orange when low, red when
+// almost gone. The words beside it say the same.
+global Tone {
+    public pure function ink(tone: int) -> color {
+        return tone == 1 ? Theme.bar-low : tone == 2 ? Theme.bar-hot : Theme.text;
+    }
+    public pure function fill(tone: int) -> color {
+        return tone == 1 ? Theme.bar-low : tone == 2 ? Theme.bar-hot : Theme.bar-ok;
+    }
+}
+
+// One limit: name and reset on the first line, then the bar and its figure.
+// The whole line copies the reset time (a ~40px target, not the 12px phrase).
+component LimitLine inherits Rectangle {
+    in property <UsageLineData> line;
+    callback copy-reset(string);
+    property <bool> can-copy: root.line.reset != "";
+    // A button: nearly every limit has a reset to copy.
+    accessible-role: button;
+    accessible-label: root.line.a11y + (root.can-copy ? ". Click to copy the reset time." : "");
+    accessible-action-default => { if root.can-copy { root.copy-reset(root.line.copy); } }
+    copy-touch := TouchArea {
+        enabled: root.can-copy;
+        mouse-cursor: root.can-copy ? MouseCursor.pointer : MouseCursor.default;
+        clicked => { root.copy-reset(root.line.copy); }
+    }
+    VerticalLayout {
+        spacing: Theme.space-8;
+        HorizontalLayout {
+            spacing: Theme.space-12;
+            Text {
+                text: root.line.label;
+                color: Theme.text;
+                font-family: Theme.font-family;
+                font-size: Theme.font-body;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+            // "Resets in 6d 3h": brightens while the line is hovered.
+            if root.can-copy: Text {
+                text: root.line.reset;
+                color: copy-touch.has-hover ? Theme.text : Theme.text-secondary;
+                font-family: Theme.font-family;
+                font-size: Theme.font-meta;
+                vertical-alignment: center;
+                horizontal-alignment: right;
+                animate color { duration: Theme.motion-hover; }
+            }
+        }
+        HorizontalLayout {
+            spacing: Theme.space-12;
+            VerticalLayout {
+                horizontal-stretch: 1;
+                alignment: center;
+                Rectangle {
+                    height: Theme.bar-height;
+                    border-radius: Theme.bar-height / 2;
+                    background: Theme.track;
+                    clip: true;
+                    Rectangle {
+                        x: 0;
+                        width: root.line.fill <= 0 ? 0px : max(Theme.bar-height, parent.width * min(root.line.fill, 1));
+                        height: 100%;
+                        border-radius: Theme.bar-height / 2;
+                        background: Tone.fill(root.line.tone);
+                        animate width { duration: Theme.motion-fill; easing: ease-out; }
+                    }
+                }
+            }
+            Text {
+                width: Theme.figure-width;
+                text: root.line.amount;
+                color: Tone.ink(root.line.tone);
+                font-family: Theme.font-family;
+                font-size: Theme.font-body;
+                font-weight: Theme.weight-medium;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
+// A label and a value on one line ("Today  134.1M tokens"), or a window
+// that ended ("Session  Window ended · refresh to update  —"). The value
+// ends on the same right edge as the figures above it.
+component ValueLine inherits HorizontalLayout {
+    in property <UsageLineData> line;
+    spacing: Theme.space-12;
+    accessible-role: text;
+    accessible-label: root.line.a11y;
+    Text {
+        text: root.line.label;
+        color: Theme.text-secondary;
+        font-family: Theme.font-family;
+        font-size: Theme.font-body;
+        vertical-alignment: center;
+        horizontal-stretch: 1;
+        overflow: elide;
+    }
+    if root.line.reset != "": Text {
+        text: root.line.reset;
+        color: Theme.text-secondary;
+        font-family: Theme.font-family;
+        font-size: Theme.font-meta;
+        vertical-alignment: center;
+    }
+    Text {
+        text: root.line.amount;
+        color: Theme.text;
+        font-family: Theme.font-family;
+        font-size: Theme.font-body;
+        font-weight: Theme.weight-medium;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+    }
+}
+
+component ProviderCard inherits Card {
+    in property <UsageCardData> card;
+    callback copy-reset(string);
+    VerticalLayout {
+        padding: Theme.gutter;
+        spacing: Theme.space-16;
+        // Header: logo, name, and the plan on the right edge.
+        VerticalLayout {
+            spacing: Theme.space-8;
+            HorizontalLayout {
+                spacing: Theme.space-12;
+                VerticalLayout {
+                    alignment: center;
+                    LogoGlyph {
+                        logo: root.card.logo;
+                        initial: root.card.initial;
+                        size: Theme.icon;
+                        tint: Brand.tint(root.card.logo);
+                    }
+                }
+                Text {
+                    text: root.card.name;
+                    color: Theme.text;
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-title;
+                    letter-spacing: Theme.tracking-title;
+                    font-weight: Theme.weight-strong;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                }
+                if root.card.lines.length > 0: Text {
+                    text: root.card.lines[0].header;
+                    color: Theme.text-secondary;
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-meta;
+                    vertical-alignment: center;
+                    horizontal-alignment: right;
+                }
+            }
+            // This provider's last check failed: say so, and why. (Data that
+            // is only old is the footer's job, not every card's.)
+            if root.card.stale && root.card.error != "": Text {
+                text: "Older data. " + root.card.error;
+                color: Theme.bar-low;
+                font-family: Theme.font-family;
+                font-size: Theme.font-meta;
+                wrap: word-wrap;
+            }
+        }
+        for line[i] in root.card.lines: VerticalLayout {
+            spacing: Theme.space-8;
+            // A second account on the same card gets its own small heading.
+            if i > 0 && line.header != "": SectionLabel { text: line.header; }
+            if line.kind == 0: LimitLine {
+                line: line;
+                copy-reset(t) => { root.copy-reset(t); }
+            }
+            if line.kind != 0: ValueLine { line: line; }
+        }
+    }
+}
+
+// Every provider that is enabled but not connected, in one card.
+component OfflineCard inherits Card {
+    in property <[UsageCardData]> cards;
+    callback add-account();
+    VerticalLayout {
+        padding: Theme.gutter;
+        spacing: Theme.space-16;
+        // The label 8 above its rows; rows 16 apart, as limits are.
+        VerticalLayout {
+            spacing: Theme.space-8;
+            SectionLabel { text: "Not connected"; }
+            VerticalLayout {
+                spacing: Theme.space-16;
+                for c in root.cards: HorizontalLayout {
+                    spacing: Theme.space-12;
+                    accessible-role: text;
+                    accessible-label: c.name + ", not connected. " + c.error;
+                    VerticalLayout {
+                        alignment: start;
+                        padding-top: Theme.space-2;
+                        LogoGlyph {
+                            logo: c.logo;
+                            initial: c.initial;
+                            size: Theme.icon;
+                            tint: Theme.text-secondary;
+                        }
+                    }
+                    VerticalLayout {
+                        spacing: Theme.space-2;
+                        horizontal-stretch: 1;
+                        Text {
+                            text: c.name;
+                            color: Theme.text;
+                            font-family: Theme.font-family;
+                            font-size: Theme.font-body;
+                            font-weight: Theme.weight-medium;
+                        }
+                        Text {
+                            text: c.hint != "" ? c.error + ". " + c.hint : c.error;
+                            color: Theme.text-secondary;
+                            font-family: Theme.font-family;
+                            font-size: Theme.font-meta;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+            }
+        }
+        HorizontalLayout {
+            alignment: start;
+            Button {
+                text: "How to connect";
+                clicked => { root.add-account(); }
+            }
+        }
+    }
+}
+
+component RingIcon inherits Rectangle {
+    in property <PriorityRowData> item;
+    width: Theme.ring;
+    height: Theme.ring;
+    if !root.item.used-up: Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 100;
+        viewbox-height: 100;
+        commands: root.item.track-path;
+        stroke: Theme.track;
+        stroke-width: Theme.ring-stroke;
+        fill: transparent;
+    }
+    if !root.item.used-up && root.item.arc-path != "": Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 100;
+        viewbox-height: 100;
+        commands: root.item.arc-path;
+        stroke: Tone.fill(root.item.tone);
+        stroke-width: Theme.ring-stroke;
+        stroke-line-cap: round;
+        fill: transparent;
+    }
+    LogoGlyph {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        logo: root.item.logo;
+        initial: root.item.initial;
+        size: Theme.icon;
+        tint: root.item.used-up ? Theme.text-dim : Brand.tint(root.item.logo);
+    }
+}
+
+// A 52px two-line row. The hover fill reaches 8px past the text edge.
+component PriorityRow inherits Rectangle {
+    in property <PriorityRowData> item;
+    callback copy-reset(string);
+    height: Theme.row-height-2;
+    border-radius: Theme.radius-control;
+    background: touch.pressed ? Theme.press : touch.has-hover ? Theme.hover : transparent;
+    animate background { duration: Theme.motion-hover; }
+    accessible-role: button;
+    accessible-label: root.item.a11y + ". Click to copy the reset time.";
+    accessible-action-default => { root.copy-reset(root.item.copy); }
+    HorizontalLayout {
+        padding-left: Theme.bleed;
+        padding-right: Theme.bleed;
+        spacing: Theme.space-12;
+        VerticalLayout {
+            alignment: center;
+            RingIcon { item: root.item; }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: Theme.space-2;
+            horizontal-stretch: 1;
+            Text {
+                text: root.item.title;
+                color: root.item.used-up ? Theme.text-secondary : Theme.text;
+                font-family: Theme.font-family;
+                font-size: Theme.font-body;
+                font-weight: Theme.weight-medium;
+                overflow: elide;
+            }
+            Text {
+                text: root.item.subtitle;
+                color: Theme.text-secondary;
+                font-family: Theme.font-family;
+                font-size: Theme.font-meta;
+                overflow: elide;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: Theme.space-2;
+            Text {
+                text: root.item.used-up ? "Used up" : root.item.percent;
+                color: root.item.used-up ? Theme.text-secondary : Tone.ink(root.item.tone);
+                font-family: Theme.font-family;
+                font-size: Theme.font-body;
+                font-weight: Theme.weight-medium;
+                horizontal-alignment: right;
+            }
+            Text {
+                text: root.item.reset;
+                color: Theme.text-secondary;
+                font-family: Theme.font-family;
+                font-size: Theme.font-meta;
+                horizontal-alignment: right;
+            }
+        }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.copy-reset(root.item.copy); }
+    }
+}
+
+// Nothing connected: say what to do, and the one action that does it.
+component EmptyHome inherits VerticalLayout {
+    callback add-account();
+    padding: Theme.gutter;
+    spacing: Theme.space-8;
+    Text {
+        text: "Nothing connected yet";
+        color: Theme.text;
+        font-family: Theme.font-family;
+        font-size: Theme.font-title;
+        letter-spacing: Theme.tracking-title;
+        font-weight: Theme.weight-strong;
+    }
+    Text {
+        text: "Quota reads the sign-in each AI coding tool already keeps on this PC. Sign in to Claude Code, Codex, Cursor, Copilot or OpenRouter, and its limits show up here.";
+        color: Theme.text-secondary;
+        font-family: Theme.font-family;
+        font-size: Theme.font-body;
+        wrap: word-wrap;
+    }
+    VerticalLayout {
+        padding-top: Theme.space-8;
+        HorizontalLayout {
+            alignment: start;
+            Button {
+                text: "Add account";
+                primary: true;
+                clicked => { root.add-account(); }
+            }
+        }
+    }
+}
+
+export component UsagePage inherits VerticalLayout {
+    in property <[UsageCardData]> cards;
+    in property <[UsageCardData]> offline;
+    in property <[PriorityRowData]> rows;
+    in property <bool> show-empty: false;
+    in property <int> home-view: 0;
+    callback copy-reset(string);
+    callback add-account();
+    callback show-all();
+
+    if root.show-empty: EmptyHome {
+        add-account => { root.add-account(); }
+    }
+
+    // Priority: rows bleed 8px into the gutter, so their text sits on it.
+    if !root.show-empty && root.home-view == 0: VerticalLayout {
+        padding-left: Theme.gutter - Theme.bleed;
+        padding-right: Theme.gutter - Theme.bleed;
+        padding-bottom: Theme.space-8;
+        if root.rows.length == 0: VerticalLayout {
+            padding-left: Theme.bleed;
+            padding-right: Theme.bleed;
+            padding-bottom: Theme.space-8;
+            spacing: Theme.space-8;
+            Text {
+                text: "Nothing is pinned or running low";
+                color: Theme.text;
+                font-family: Theme.font-family;
+                font-size: Theme.font-body;
+                font-weight: Theme.weight-medium;
+            }
+            Text {
+                text: "Every limit has room. A limit shows here when you pin it, when it runs low, or when it is used up.";
+                color: Theme.text-secondary;
+                font-family: Theme.font-family;
+                font-size: Theme.font-meta;
+                wrap: word-wrap;
+            }
+            VerticalLayout {
+                padding-top: Theme.space-8;
+                HorizontalLayout {
+                    alignment: start;
+                    Button {
+                        text: "Show all usage";
+                        clicked => { root.show-all(); }
+                    }
+                }
+            }
+        }
+        for row[i] in root.rows: VerticalLayout {
+            // A label sits 16px below the row before it. A row keeps about
+            // 9px of air above its text, so the gap reads as the 24px section gap.
+            if row.heading != "": VerticalLayout {
+                padding-left: Theme.bleed;
+                padding-top: i == 0 ? 0px : Theme.space-16;
+                padding-bottom: Theme.space-4;
+                SectionLabel { text: row.heading; }
+            }
+            PriorityRow {
+                item: row;
+                copy-reset(t) => { root.copy-reset(t); }
+            }
+        }
+    }
+
+    // All usage: connected cards, then one card for the rest.
+    if !root.show-empty && root.home-view == 1: VerticalLayout {
+        padding-left: Theme.gutter;
+        padding-right: Theme.gutter;
+        padding-bottom: Theme.gutter;
+        spacing: Theme.space-16;
+        for card in root.cards: ProviderCard {
+            card: card;
+            copy-reset(t) => { root.copy-reset(t); }
+        }
+        if root.offline.length > 0: OfflineCard {
+            cards: root.offline;
+            add-account => { root.add-account(); }
+        }
+    }
+}

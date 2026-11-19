@@ -1,0 +1,143 @@
+// Add account. Quota has no login of its own: each row is a tool whose
+// sign-in Quota reads. A row opens to say how to sign in to that tool.
+//
+// Grid (theme.slint): the same header as Settings (back button on the
+// gutter, title 8px after it), a card of 44px rows, and the status and the
+// one action on the last line. Only the list scrolls when the window is
+// short, so the action always stays on screen.
+
+import { Theme } from "../theme.slint";
+import { LogoGlyph, Brand } from "../components/logo.slint";
+import { Button, Card, Divider, PageHeader } from "../components/controls.slint";
+import { ConnectorData } from "../model.slint";
+
+component ProviderChoice inherits Rectangle {
+    in property <ConnectorData> c;
+    in property <bool> open: false;
+    callback toggled();
+    background: touch.pressed ? Theme.press : touch.has-hover ? Theme.hover : transparent;
+    animate background { duration: Theme.motion-hover; }
+    accessible-role: button;
+    accessible-label: root.c.label + ", " + root.c.state + (root.open ? ". " + root.c.how : "");
+    accessible-action-default => { root.toggled(); }
+    VerticalLayout {
+        HorizontalLayout {
+            min-height: Theme.row-height;
+            padding-left: Theme.gutter;
+            padding-right: Theme.gutter;
+            spacing: Theme.space-12;
+            VerticalLayout {
+                alignment: center;
+                LogoGlyph {
+                    logo: root.c.logo;
+                    initial: root.c.initial;
+                    size: Theme.icon;
+                    tint: Brand.tint(root.c.logo);
+                }
+            }
+            Text {
+                text: root.c.label;
+                color: Theme.text;
+                font-family: Theme.font-family;
+                font-size: Theme.font-body;
+                font-weight: Theme.weight-medium;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+            Text {
+                text: root.c.state;
+                color: Theme.text-secondary;
+                font-family: Theme.font-family;
+                font-size: Theme.font-meta;
+                vertical-alignment: center;
+            }
+            VerticalLayout {
+                alignment: center;
+                Image {
+                    source: root.open ? @image-url("../icons/lucide-chevron-down.svg") : @image-url("../icons/lucide-chevron-right.svg");
+                    colorize: Theme.text-dim;
+                    width: Theme.icon;
+                    height: Theme.icon;
+                    accessible-role: none;
+                }
+            }
+        }
+        // The note starts on the name's edge: gutter + icon + 12.
+        if root.open: HorizontalLayout {
+            padding-left: Theme.gutter + Theme.icon + Theme.space-12;
+            padding-right: Theme.gutter;
+            padding-bottom: Theme.space-12;
+            Text {
+                text: root.c.how;
+                color: Theme.text-secondary;
+                font-family: Theme.font-family;
+                font-size: Theme.font-meta;
+                wrap: word-wrap;
+            }
+        }
+    }
+    touch := TouchArea { mouse-cursor: pointer; clicked => { root.toggled(); } }
+}
+
+export component ConnectPage inherits VerticalLayout {
+    in property <[ConnectorData]> connectors;
+    // First run: nothing is connected yet.
+    in property <bool> welcome: false;
+    // "2 of 5 connected"
+    in property <string> summary;
+    // Work-area height. The list gives up space so the action stays visible.
+    in property <length> window-limit: 800px;
+    callback check-again();
+    callback done();
+    padding: Theme.gutter;
+    spacing: Theme.space-16;
+
+    header := PageHeader {
+        title: "Add account";
+        subtitle: "Sign in to a tool, then check again.";
+        back-clicked => { root.done(); }
+    }
+
+    property <int> open-row: -1;
+    property <length> list-cap: max(Theme.row-height * 3, root.window-limit - header.preferred-height - foot.preferred-height - 2 * Theme.gutter - 2 * Theme.space-16);
+    Rectangle {
+        height: min(list.preferred-height, root.list-cap);
+        clip: true;
+        Flickable {
+            width: 100%;
+            height: 100%;
+            content-height: list.preferred-height;
+            list := Card {
+                width: parent.width;
+                VerticalLayout {
+                    for c[i] in root.connectors: VerticalLayout {
+                        if i > 0: Divider { inset: Theme.gutter + Theme.icon + Theme.space-12; }
+                        ProviderChoice {
+                            c: c;
+                            open: root.open-row == i;
+                            toggled => { root.open-row = root.open-row == i ? -1 : i; }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Status on the left, the one action on the right edge.
+    foot := HorizontalLayout {
+        spacing: Theme.space-12;
+        Text {
+            text: root.welcome ? "Nothing is connected yet." : root.summary;
+            color: Theme.text-secondary;
+            font-family: Theme.font-family;
+            font-size: Theme.font-meta;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+        Button {
+            text: "Check again";
+            primary: true;
+            clicked => { root.check-again(); }
+        }
+    }
+}
